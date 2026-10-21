@@ -32,6 +32,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 // Chat models verified to be serverless on Together. Vision models can "see"
 // images attached in chat; all of them support tool calling.
 const CHAT_MODELS = [
+  { id: 'deepseek-ai/DeepSeek-V4.1-Flash-1017', label: 'DeepSeek V4.1 Flash (vision)', vision: true },
   { id: 'zai-org/GLM-5.3-Flash', label: 'GLM 5.3 Flash (vision, fast)', vision: true },
   { id: 'MiniMaxAI/MiniMax-M3', label: 'MiniMax M3 (vision)', vision: true },
   { id: 'openai/gpt-oss-120b', label: 'gpt-oss 120B (text only)', vision: false },

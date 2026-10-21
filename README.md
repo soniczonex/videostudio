@@ -33,7 +33,7 @@ The server listens on `127.0.0.1` by default, so only your own machine can reach
 | `TOGETHER_API_KEY` | (none) | Required |
 | `PORT` | `3000` | |
 | `HOST` | `127.0.0.1` | |
-| `CHAT_MODEL` | `zai-org/GLM-5.3-Flash` | Default model for the director chat. You can also change it in ⚙️ Settings. |
+| `CHAT_MODEL` | `deepseek-ai/DeepSeek-V4.1-Flash-1017` | Default model for the director chat. You can also change it in ⚙️ Settings. |
 
 ## Seedance 2.5 notes
 
