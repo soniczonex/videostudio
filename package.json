@@ -1,0 +1,13 @@
+{
+  "name": "seedance-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal Seedance 2.5 video generation studio and AI director chatbot, powered by Together AI.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
