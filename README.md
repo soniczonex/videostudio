@@ -23,6 +23,7 @@ It's a single Node.js server and a plain HTML/JS front end. **No npm dependencie
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -247,6 +248,12 @@ Media is served from `/media/videos/…` and `/media/uploads/…`.
 ## Contributing
 
 Issues and pull requests are welcome. The code is intentionally dependency-free, so please keep it that way: plain Node.js built-ins on the server and vanilla JS in the browser.
+
+---
+
+## License
+
+[MIT](LICENSE)
 
 ---
 
