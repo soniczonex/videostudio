@@ -173,6 +173,68 @@ async function uploadAsDataUrl(id) {
   return `data:${u.mime};base64,${buf.toString('base64')}`;
 }
 
+// Read width/height from a PNG, JPEG, GIF or WebP header (null if unknown).
+function imageSize(buf) {
+  if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  if (buf.length > 10 && buf.toString('ascii', 0, 3) === 'GIF') return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) };
+  if (buf.length > 30 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+    const chunk = buf.toString('ascii', 12, 16);
+    if (chunk === 'VP8 ') return { w: buf.readUInt16LE(26) & 0x3fff, h: buf.readUInt16LE(28) & 0x3fff };
+    if (chunk === 'VP8L') { const b = buf.readUInt32LE(21); return { w: (b & 0x3fff) + 1, h: ((b >> 14) & 0x3fff) + 1 }; }
+    if (chunk === 'VP8X') return { w: buf.readUIntLE(24, 3) + 1, h: buf.readUIntLE(27, 3) + 1 };
+  }
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    for (let i = 2; i + 9 < buf.length;) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) };
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+  return null;
+}
+
+// Resize an image file in place with sips (macOS) or ffmpeg, whichever is available.
+async function resizeImageFile(file, w, h) {
+  const { execFile } = require('node:child_process');
+  const run = (cmd, args) => new Promise((resolve, reject) => execFile(cmd, args, (err) => (err ? reject(err) : resolve())));
+  try {
+    await run('sips', ['--resampleHeightWidth', String(h), String(w), file]);
+  } catch {
+    const tmp = file + '.tmp' + path.extname(file);
+    await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-vf', `scale=${w}:${h}:flags=lanczos`, tmp]);
+    await fsp.rename(tmp, file);
+  }
+}
+
+// Seedance fails the job (minutes later) if an image side is outside 300–6000 px, so check up front
+// and upscale too-small uploads in place so old uploads work too.
+async function checkImageSize(ref, label) {
+  const id = typeof ref === 'string' ? ref : ref?.upload;
+  const u = id && uploadById(id);
+  if (!u || u.kind !== 'image') return;
+  const file = path.join(UPLOADS_DIR, u.file);
+  const size = imageSize(await fsp.readFile(file));
+  if (!size) return;
+  const short = Math.min(size.w, size.h);
+  const scale = short < 300 ? 300 / short : 1;
+  const w = Math.round(size.w * scale), h = Math.round(size.h * scale);
+  if (scale > 1 && Math.max(w, h) <= 6000) {
+    try {
+      await resizeImageFile(file, w, h);
+      u.size = (await fsp.stat(file)).size;
+      save();
+      console.log(`↑ Upscaled ${u.file} from ${size.w}×${size.h} to ${w}×${h}`);
+      return;
+    } catch (e) { console.warn(`upscale ${u.file}: ${e.message}`); }
+  }
+  if (short < 300 || Math.max(size.w, size.h) > 6000) {
+    throw new ApiError(400, `${label} is ${size.w}×${size.h} px; each side must be 300–6000 px. Use a larger image.`);
+  }
+}
+
 // A media "ref" from the client is either { upload: 'up_xxx' } or { url: 'https://…' }.
 async function resolveRef(ref) {
   if (typeof ref === 'string') return ref.startsWith('up_') ? uploadAsDataUrl(ref) : ref;
@@ -224,6 +286,8 @@ function modeOf(v) {
 async function createVideo(params, { chatId, source = 'studio' } = {}) {
   const v = validateParams(params);
   const body = { model: VIDEO_MODEL, prompt: v.prompt, resolution: v.resolution, seconds: String(v.seconds) };
+  for (const [i, f] of v.frames.entries()) await checkImageSize(f.ref, `${f.frame === 'last' || (!f.frame && i === 1) ? 'Last' : 'First'} frame image`);
+  for (const [i, r] of v.refImages.entries()) await checkImageSize(r, `Reference image ${i + 1}`);
   const media = {};
   if (v.frames.length) {
     media.frame_images = await Promise.all(v.frames.map(async (f, i) => ({

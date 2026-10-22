@@ -110,10 +110,16 @@ function readAsDataUrl(file) {
   });
 }
 
-// Downscale very large images so requests stay small (Seedance output is ≤720p anyway).
-async function normalizeImage(dataUrl, maxSide = 2048) {
+// Downscale very large images so requests stay small (Seedance output is ≤720p anyway),
+// and upscale tiny ones: Seedance rejects images with a side under 300 px.
+async function normalizeImage(dataUrl, maxSide = 2048, minSide = 300) {
   const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
-  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const short = Math.min(img.width, img.height);
+  const long = Math.max(img.width, img.height);
+  if (long / short > maxSide / minSide) {
+    throw new Error(`Image is ${img.width}×${img.height}; it's too long and thin to use. Each side must end up between ${minSide} and ${maxSide} px.`);
+  }
+  const scale = short < minSide ? minSide / short : Math.min(1, maxSide / long);
   if (scale === 1 && dataUrl.length < 4_000_000) return dataUrl;
   const c = document.createElement('canvas');
   c.width = Math.round(img.width * scale);
